@@ -1,5 +1,8 @@
 # AIChatKitLlama
 
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FNerdSnipe-Inc%2FAIChatKitLlama%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/NerdSnipe-Inc/AIChatKitLlama)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FNerdSnipe-Inc%2FAIChatKitLlama%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/NerdSnipe-Inc/AIChatKitLlama)
+
 Adds on-device GGUF inference via [llama.cpp](https://github.com/ggerganov/llama.cpp) to any app already using [AIChatKit](https://github.com/NerdSnipe-Inc/AIChatKit). Models run entirely in-process using Metal GPU acceleration — no network calls after the initial download.
 
 **Platforms:** macOS 14+ · iOS 17+  
