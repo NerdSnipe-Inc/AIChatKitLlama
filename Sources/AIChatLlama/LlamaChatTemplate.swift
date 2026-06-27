@@ -1,21 +1,35 @@
 import Foundation
 import AIChatCore
 
-/// Utilities for converting `ChatMessage` history into the format llama.cpp expects.
+/// Utilities for mapping `ChatMessage` history into llama.cpp chat-template inputs.
+///
+/// This namespace contains conversion, truncation, stop-detection, and Gemma-specific
+/// prompt building helpers used by `LlamaProvider`.
 public struct LlamaChatTemplate {
 
-    /// A role/content pair ready to pass to `llama_chat_apply_template`.
+    /// A role/content pair ready for `llama_chat_apply_template`.
+    ///
+    /// Instances of `Entry` are intentionally lightweight and represent the
+    /// minimal payload required by llama.cpp chat template rendering.
     public struct Entry {
+        /// Chat role string expected by the selected template (for example, `user`).
         public let role: String
+        /// Message content already normalized for template application.
         public let content: String
     }
 
     // MARK: - Message conversion
 
-    /// Convert `[ChatMessage]` into `[Entry]` for `llama_chat_apply_template`.
-    /// - Thinking blocks are stripped (internal reasoning, never part of the chat surface).
-    /// - Tool calls in assistant messages are serialised inline.
-    /// - Tool result messages use role `"tool"`.
+    /// Converts high-level chat history into template-ready entries.
+    ///
+    /// Conversion rules:
+    /// - Thinking blocks are dropped and never included in prompt text.
+    /// - Image blocks are converted to a placeholder marker (`[image]`).
+    /// - Tool calls are serialized as `<tool_call>{...}</tool_call>` snippets.
+    /// - Tool message content is mapped to role `"tool"`.
+    ///
+    /// - Parameter messages: Source conversation history in chronological order.
+    /// - Returns: Template entries suitable for prompt rendering.
     public static func convert(_ messages: [ChatMessage]) -> [Entry] {
         messages.compactMap { msg in
             let role: String
@@ -60,8 +74,10 @@ public struct LlamaChatTemplate {
 
     // MARK: - Gemma 4 manual template
 
-    /// Builds a Gemma 4 prompt manually when llama.cpp's Jinja parser can't handle
-    /// the model's built-in template (which is typical for all Gemma variants).
+    /// Builds a Gemma 4 prompt manually when built-in template rendering is unavailable.
+    ///
+    /// llama.cpp's Jinja parser may reject some Gemma templates. This helper emits
+    /// the explicit `<start_of_turn>...<end_of_turn>` format expected by Gemma 4.
     ///
     /// Format used by Gemma 4 (and Gemma 4 E2B IT):
     /// ```
@@ -71,7 +87,10 @@ public struct LlamaChatTemplate {
     /// content<end_of_turn>
     /// <start_of_turn>model
     /// ```
-    /// BOS is not included here — `llama_tokenize(add_special: true)` prepends it.
+    /// BOS is intentionally not included because tokenization can prepend specials.
+    ///
+    /// - Parameter entries: Template entries in conversation order.
+    /// - Returns: A prompt string ending with an assistant/model turn prefix.
     public static func buildGemma4Prompt(entries: [Entry]) -> String {
         var prompt = ""
         for entry in entries {
@@ -84,7 +103,12 @@ public struct LlamaChatTemplate {
 
     // MARK: - Stop sequence detection
 
-    /// Returns `true` if `generated` contains any occurrence of `stop`.
+    /// Returns whether generated text contains a stop sequence.
+    ///
+    /// - Parameters:
+    ///   - stop: Stop string to detect.
+    ///   - generated: Generated output buffer to scan.
+    /// - Returns: `true` if `generated` includes `stop`; otherwise `false`.
     public static func containsStop(_ stop: String, in generated: String) -> Bool {
         guard !stop.isEmpty else { return false }
         return generated.contains(stop)
@@ -92,7 +116,13 @@ public struct LlamaChatTemplate {
 
     // MARK: - Context window management
 
-    /// Trim history to keep the system message + the most recent `maxTurns` non-system messages.
+    /// Trims history to system messages plus the latest non-system turns.
+    ///
+    /// - Parameters:
+    ///   - messages: Full chat history in chronological order.
+    ///   - maxTurns: Maximum number of non-system messages to retain.
+    /// - Returns: A reduced message list preserving all system messages and the
+    ///   newest `maxTurns` non-system messages.
     public static func truncate(_ messages: [ChatMessage], maxTurns: Int) -> [ChatMessage] {
         let systemMessages = messages.filter { $0.role == .system }
         let nonSystem      = messages.filter { $0.role != .system }

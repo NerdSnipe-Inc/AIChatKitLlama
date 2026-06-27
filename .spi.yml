@@ -1,7 +1,10 @@
 version: 1
+metadata:
+  authors:
+    - NerdSnipe
 builder:
   configs:
     - platform: macos-spm
       target: AIChatLlama
-    - documentation_targets:
+      documentation_targets:
         - AIChatLlama

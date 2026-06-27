@@ -2,31 +2,45 @@ import Foundation
 import LlamaSwift
 import AIChatCore
 
-/// `ChatProvider` that runs inference directly in-process via llama.cpp.
+/// A `ChatProvider` that runs inference directly in-process via `llama.cpp`.
 ///
-/// ### Features
-/// - **KV cache reuse** — a single `LlamaContext` is kept alive across turns.
-///   Only new tokens are evaluated; the shared prefix (system prompt + history)
-///   is served from the KV cache. O(n) per turn instead of O(n²).
-/// - **Proper sampler chain** — `llama_sampler_chain_*` with top-k, min-p, top-p,
-///   temperature, and repetition penalties.
-/// - **Tool use** — injects tool schemas into the system message; detects
-///   `<tool_call>…</tool_call>` in model output and emits `.toolCallComplete`.
-/// - **Gemma 4 template** — manual fallback for models whose Jinja template
-///   llama.cpp's built-in parser cannot handle.
-/// - **Simulator safety** — GPU offload disabled automatically on simulators.
+/// `LlamaProvider` maintains a long-lived model and context so chat turns can reuse
+/// KV cache state instead of re-evaluating the entire prompt every request.
+/// It also handles template selection, sampling strategy, and tool-call extraction.
 ///
-/// ### Usage
+/// ## Key Behaviors
+/// - KV-cache prefix reuse for efficient multi-turn conversations.
+/// - Sampler-chain configuration for top-k, min-p, top-p, temperature, and penalties.
+/// - Tool definition injection into the system prompt.
+/// - `<tool_call>...</tool_call>` detection and emission as `.toolCallComplete` events.
+/// - Gemma 4 prompt fallback when built-in template parsing fails.
+///
+/// ## Threading Model
+/// This type is an `actor`, so mutable model/context state is serialized by actor
+/// isolation. `stream(messages:model:options:)` is marked `nonisolated` and forwards
+/// work back to actor-isolated methods.
+///
+/// ## Example
 /// ```swift
 /// let provider = LlamaProvider(
-///     modelPath:   "/path/to/model.gguf",
+///     modelPath: "/path/to/model.gguf",
 ///     contextSize: 8192,
-///     nGpuLayers:  99   // ≥99 = all layers on GPU; -1 = CPU only
+///     nBatch: 512,
+///     nGpuLayers: 99,
+///     maxTurns: 20
 /// )
 /// ```
+///
+/// - Important: Ensure `modelPath` points to a valid, local `.gguf` file.
 public actor LlamaProvider: ChatProvider {
 
+    /// Stable provider identifier used by `AIChatCore` routing.
+    ///
+    /// Use this value when you need to recognize responses emitted by this provider.
     public nonisolated let id   = "llama"
+    /// Human-readable provider display name.
+    ///
+    /// This value is intended for logs and UI surfaces.
     public nonisolated let name = "llama.cpp"
 
     // MARK: - Configuration
@@ -44,6 +58,18 @@ public actor LlamaProvider: ChatProvider {
 
     // MARK: - Init
 
+    /// Creates a provider instance backed by a local llama.cpp-compatible model.
+    ///
+    /// - Parameters:
+    ///   - modelPath: Filesystem path to a `.gguf` model file.
+    ///   - contextSize: Target context window (`n_ctx`) for the runtime context.
+    ///   - nBatch: Decode batch size (`n_batch`) used during prompt evaluation.
+    ///   - nGpuLayers: Number of transformer layers to offload to GPU.
+    ///     Use `-1` for CPU-only mode; high positive values request broad offload.
+    ///   - maxTurns: Maximum number of non-system messages retained when truncating
+    ///     history before prompt construction.
+    ///
+    /// - Note: On simulator builds, GPU offload is disabled internally.
     public init(
         modelPath:   String,
         contextSize: UInt32 = 8192,
@@ -67,6 +93,18 @@ public actor LlamaProvider: ChatProvider {
 
     // MARK: - ChatProvider
 
+    /// Streams assistant output events for a chat request.
+    ///
+    /// The stream may emit `.text` chunks and `.toolCallComplete` events as model
+    /// output is decoded. The stream finishes when generation ends or throws.
+    ///
+    /// - Parameters:
+    ///   - messages: Ordered conversation history to include in prompt construction.
+    ///   - model: Logical model hint provided by `AIChatCore`.
+    ///     This provider currently uses its configured local model and ignores
+    ///     this argument for runtime model switching.
+    ///   - options: Sampling, system prompt, tool definitions, and stop conditions.
+    /// - Returns: An `AsyncThrowingStream` of `ChatStreamEvent` values.
     public nonisolated func stream(
         messages: [ChatMessage],
         model: String,
@@ -84,6 +122,17 @@ public actor LlamaProvider: ChatProvider {
         }
     }
 
+    /// Produces a single non-streaming completion by collecting streamed text output.
+    ///
+    /// This helper consumes `stream(messages:model:options:)`, concatenates `.text`
+    /// events, and returns a final `ChatCompletionResult`.
+    ///
+    /// - Parameters:
+    ///   - messages: Ordered conversation history to include in prompt construction.
+    ///   - model: Logical model hint provided by the caller.
+    ///   - options: Sampling, system prompt, and tool configuration for generation.
+    /// - Returns: A completion result containing the assembled assistant message.
+    /// - Throws: Any error propagated by streaming generation.
     public func complete(
         messages: [ChatMessage],
         model: String,
