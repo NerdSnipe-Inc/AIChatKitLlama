@@ -1,14 +1,28 @@
 // swift-tools-version: 5.10
 
+import Foundation
 import PackageDescription
 
-// AIChatKitLlama adds on-device GGUF inference to any app that already uses AIChatKit.
-// The LlamaProvider (~500 MB binary XCFramework via llama.swift) is isolated here so
-// apps that only need cloud or MLX providers don't pull the large binary.
-//
-// Usage:
-//   .package(url: "https://github.com/NerdSnipe-Inc/AIChatKit",      from: "0.1.0"),
-//   .package(url: "https://github.com/NerdSnipe-Inc/AIChatKitLlama", from: "0.1.0"),
+private let packageDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+
+private func siblingOrRemote(
+    siblingRelativePath: String,
+    url: String,
+    from version: Version
+) -> Package.Dependency {
+    let siblingManifest = packageDirectory
+        .appendingPathComponent(siblingRelativePath)
+        .standardized
+        .appendingPathComponent("Package.swift")
+
+    let forceRemote = ProcessInfo.processInfo.environment["SPI_PROCESSING"] != nil
+        || ProcessInfo.processInfo.environment["FORCE_REMOTE_PACKAGES"] != nil
+
+    if !forceRemote, FileManager.default.fileExists(atPath: siblingManifest.path) {
+        return .package(path: siblingRelativePath)
+    }
+    return .package(url: url, from: version)
+}
 
 let package = Package(
     name: "AIChatKitLlama",
@@ -17,7 +31,11 @@ let package = Package(
         .library(name: "AIChatLlama", targets: ["AIChatLlama"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/NerdSnipe-Inc/AIChatKit.git", from: "0.1.0"),
+        siblingOrRemote(
+            siblingRelativePath: "../AIChatKit",
+            url: "https://github.com/NerdSnipe-Inc/AIChatKit.git",
+            from: "1.0.0"
+        ),
         .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.9469.0")),
     ],
     targets: [
