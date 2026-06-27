@@ -1,0 +1,7 @@
+version: 1
+builder:
+  configs:
+    - platform: macos-spm
+      target: AIChatLlama
+    - documentation_targets:
+        - AIChatLlama
