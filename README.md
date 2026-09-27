@@ -22,8 +22,8 @@ Adds on-device GGUF inference via [llama.cpp](https://github.com/ggerganov/llama
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/NerdSnipe-Inc/AIChatKit",      from: "0.1.0"),
-.package(url: "https://github.com/NerdSnipe-Inc/AIChatKitLlama", from: "0.1.0"),
+.package(url: "https://github.com/NerdSnipe-Inc/AIChatKit",      from: "1.0.0"),
+.package(url: "https://github.com/NerdSnipe-Inc/AIChatKitLlama", from: "1.0.3"),
 
 // Target dependencies
 .product(name: "AIChatCore",  package: "AIChatKit"),
@@ -32,6 +32,13 @@ Adds on-device GGUF inference via [llama.cpp](https://github.com/ggerganov/llama
 ```
 
 > **Note:** `AIChatLlama` pulls a ~500 MB binary XCFramework. Add it only to targets that actually need local inference. Do not commit the resolved XCFramework to git — add `AIChatKitLlama` to your `.gitignore`.
+
+> **`llama.swift` is pinned to 2.9469.x** (`.upToNextMinor`), not any 2.x. `llama.swift` versions are
+> `2.<llama.cpp build>.<patch>`; `LlamaSampler.swift`'s calls into `llama_sampler_init_penalties`
+> target the 2.9469.x build's signature. 2.10549.0 changed that signature (added an `n_vocab`
+> argument) and fails to compile against this package. Moving to a newer build needs a code change
+> and a live test — see the 1.0.3 entry in [CHANGELOG.md](CHANGELOG.md). Accepts `AIChatKit` 1.x or
+> 2.x as of 1.0.3 (only `AIChatCore` is used).
 
 ---
 
