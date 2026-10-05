@@ -16,7 +16,13 @@ Adds on-device GGUF inference via [llama.cpp](https://github.com/ggerganov/llama
 
 > **Requires AIChatKit.** Add both packages to your target.
 
+Prefer Apple MLX models? [AIChatKitMLX](https://github.com/NerdSnipe-Inc/AIChatKitMLX) is the sibling package: text and vision models on Metal and the Neural Engine, behind the same AIChatKit protocol.
+
 ---
+
+[![Sponsor NerdSnipe-Inc](https://img.shields.io/badge/Sponsor-NerdSnipe--Inc-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/NerdSnipe-Inc)
+
+> AIChatKitLlama is free and open source. If it saved you time, [sponsoring NerdSnipe Inc](https://github.com/sponsors/NerdSnipe-Inc) pays for the maintenance, bug fixes and new releases that keep it working.
 
 ## Installation
 
@@ -87,8 +93,9 @@ Download models from [Hugging Face](https://huggingface.co/models?library=gguf).
 ```swift
 LlamaProvider(
     modelPath:   "/path/to/model.gguf",
-    contextSize: 8192,   // KV cache size in tokens
-    nGpuLayers:  99,     // 99 = all on GPU, 0 = CPU only, -1 = CPU only
+    contextSize: 8192,   // KV cache size in tokens (default 8192)
+    nBatch:      512,    // prompt-evaluation batch size (default 512)
+    nGpuLayers:  99,     // 99 = all on GPU, 0 = CPU only, -1 = CPU only (default -1)
     maxTurns:    20      // older turns truncated beyond this
 )
 ```
@@ -113,3 +120,10 @@ Cloud providers silently ignore `topK`, `minP`, and `penaltyRepeat` — safe to 
 ## License
 
 MIT
+
+## Support this project
+
+AIChatKitLlama is built and maintained by [NerdSnipe Inc](https://nerdsnipe.cc), a small independent studio in Ottawa. Sponsorship funds keeping up with llama.cpp releases.
+
+- [Sponsor on GitHub](https://github.com/sponsors/NerdSnipe-Inc), from $5/month or a one-time amount
+- [More about what we fund](https://nerdsnipe.cc/sponsor)
